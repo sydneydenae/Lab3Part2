@@ -18,11 +18,6 @@ int  main(int  argc, char *argv[])
      int    status;
      srandom(3);
 
-     if (argc != 3) {
-          printf("Use: %s #1 #2\n", argv[0]);
-          exit(1);
-     }
-
      ShmID = shmget(IPC_PRIVATE, 2*sizeof(int), IPC_CREAT | 0666);
      if (ShmID < 0) {
           printf("*** shmget error (server) ***\n");
@@ -30,15 +25,16 @@ int  main(int  argc, char *argv[])
      }
      printf("Server has received a shared memory of two integers...\n");
 
-     ShmPTR = (int *) shmat(ShmID, NULL, 0);
-     if (*ShmPTR == -1) {
-          printf("*** shmat error (server) ***\n");
-          exit(1);
-     }
+     // Attach shared memory
+    ShmPTR = (int *) shmat(ShmID, NULL, 0);
+    if (ShmPTR == (int *) -1) {
+        printf("*** shmat error (server) ***\n");
+        exit(1);
+    }
      printf("Server has attached the shared memory...\n");
 
-     ShmPTR[0] = atoi(argv[1]); // Bank Account.
-     ShmPTR[1] = atoi(argv[2]); // Turn.
+     ShmPTR[0] = 0; // Bank Account.
+     ShmPTR[1] = 0; // Turn.
      
      printf("Server has filled %d %d in shared memory...\n",
             ShmPTR[0], ShmPTR[1]);
@@ -53,8 +49,8 @@ int  main(int  argc, char *argv[])
           ClientProcess(ShmPTR);
           exit(0);
      } else {
-        wait(&status);
         ParentProcess(ShmPTR);
+        wait(&status);
         exit(0);
      }
 }
@@ -69,18 +65,22 @@ void  ParentProcess(int  SharedMem[])
   for (i = 1; i <= 25; i++){
      randSleep = random() % 5;
       sleep(randSleep);
-      account = SharedMem[0];
       while(SharedMem[1] != 0){
         // Do nothing
+        usleep(100);
       }
-      balance = random() % 100;
-      if(balance % 2 == 0){
-        account += balance;
-        printf("Dear old Dad: Deposits $%d / Balance = $%d\n", balance, account);
-      } else {
-        printf("Dear old Dad: Doesn't have any money to give\n");
+      account = SharedMem[0];
+      // Deposit money
+      if (account <= 100){
+          balance = random() % 100;
+          if(balance % 2 == 0){
+          account += balance;
+          printf("Dear old Dad: Deposits $%d / Balance = $%d\n", balance, account);
+          } else {
+          printf("Dear old Dad: Doesn't have any money to give\n");
+          }
+          SharedMem[0] = account;
       }
-      SharedMem[0] = account;
       SharedMem[1] = 1;
   }
 }
@@ -95,13 +95,14 @@ void  ClientProcess(int  SharedMem[])
   for (i = 1; i <= 25; i++){
       randSleep = random() % 5;
       sleep(randSleep);
-      account = SharedMem[0];
       while(SharedMem[1] != 1){
-        // Do nothing
+          usleep(100);
       }
+      account = SharedMem[0];
       balance = random() % 50;
       printf("Poor Student needs $%d\n", balance);
 
+      // Withdraw
       if(balance <= account){
         account -= balance;
         printf("Poor Student: Withdraws $%d / Balance = $%d\n", balance, account);
@@ -110,6 +111,7 @@ void  ClientProcess(int  SharedMem[])
       }
 
       SharedMem[0] = account;
-      SharedMem[1] = 0;
+      SharedMem[1] = 0; // Set turn for Parent
+
   }
 }
